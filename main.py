@@ -1,53 +1,81 @@
 import multiprocessing
 import time
 import random
+import queue
 
-# Класс для задания
 class Task:
-    def __init__(self, id, complexity):
+    def __init__(self, id, duration):
         self.id = id
-        self.complexity = complexity  # Время выполнения задания
+        self.duration = duration  # Время выполнения задания
 
-    def execute(self):
-        print(f"Task {self.id} started with complexity {self.complexity}")
-        time.sleep(self.complexity)  # Симуляция выполнения задания
-        print(f"Task {self.id} completed")
+class Server:
+    def __init__(self, id):
+        self.id = id
+        self.current_task = None
+        self.remaining_time = 0
 
-# Функция для работы процесса
-def worker(task_queue, process_id):
-    while True:
-        task = task_queue.get()  # Извлечение задания из очереди
-        if task is None:  # Условие завершения работы процесса
-            print(f"Process {process_id} exiting")
-            break
-        task.execute()
+    def assign_task(self, task):
+        self.current_task = task
+        self.remaining_time = task.duration
+        print(f"Задание с {task.duration} секундами выполнения направлено на Сервер {self.id}.")
 
-# Функция для создания и распределения заданий
+    def tick(self):
+        if self.current_task:
+            self.remaining_time -= 1
+            if self.remaining_time <= 0:
+                print(f"Сервер {self.id} завершает выполнение задания {self.current_task.id}.")
+                self.current_task = None
+
+    def is_busy(self):
+        return self.current_task is not None
+
+    def status(self):
+        if self.is_busy():
+            return f"выполняет задание (осталось {self.remaining_time} сек.)"
+        else:
+            return "пусто"
+
 def main():
-    num_processes = 4  # Количество процессов
+    print("Добро пожаловать в симулятор распределенной системы.")
+    num_servers = int(input("Введите количество серверов: "))
+    servers = [Server(i + 1) for i in range(num_servers)]
     task_queue = multiprocessing.Queue()
 
-    # Создание процессов
-    processes = []
-    for i in range(num_processes):
-        p = multiprocessing.Process(target=worker, args=(task_queue, i))
-        p.start()
-        processes.append(p)
+    while True:
+        print("\nСостояние серверов:")
+        for server in servers:
+            print(f"Сервер {server.id}: {server.status()}")
 
-    # Генерация заданий
-    num_tasks = 10
-    for i in range(num_tasks):
-        complexity = random.uniform(0.5, 2.0)  # Сложность задания (время выполнения)
-        task = Task(i, complexity)
-        task_queue.put(task)  # Добавление задания в очередь
+        print("Очередь заданий:", list(task_queue.queue) if not task_queue.empty() else "нет.")
 
-    # Завершение процессов
-    for _ in range(num_processes):
-        task_queue.put(None)  # Отправка сигнала завершения для каждого процесса
+        command = input("Команда (добавить <время> / выйти): ")
+        if command.startswith("добавить"):
+            _, duration = command.split()
+            duration = int(duration)
+            task = Task(len(task_queue.queue) + 1, duration)
+            task_queue.put(task)
+            assign_task_to_server(servers, task)
 
-    # Ожидание завершения всех процессов
-    for p in processes:
-        p.join()
+        elif command == "выйти":
+            break
+
+        # Обработка заданий
+        for server in servers:
+            if server.is_busy():
+                server.tick()
+            else:
+                if not task_queue.empty():
+                    next_task = task_queue.get()
+                    assign_task_to_server(servers, next_task)
+
+def assign_task_to_server(servers, task):
+    available_servers = [server for server in servers if not server.is_busy()]
+    if available_servers:
+        chosen_server = random.choice(available_servers)
+        chosen_server.assign_task(task)
+    else:
+        print(f"Задание {task.id} добавлено в очередь.")
 
 if __name__ == "__main__":
     main()
+
