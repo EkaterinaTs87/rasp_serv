@@ -1,5 +1,4 @@
 import time
-import random
 from collections import deque
 
 class Task:
@@ -63,7 +62,8 @@ def main():
         if command.startswith("добавить"):
             _, duration = command.split()
             duration = int(duration)
-            task = Task(len([t for s in servers for t in s.task_queue]) + 1, duration)
+            task_id = len([t for s in servers for t in s.task_queue]) + 1
+            task = Task(task_id, duration)
             assign_task_to_server(servers, task)
 
         elif command == "выйти":
